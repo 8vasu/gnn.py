@@ -29,6 +29,7 @@ This project demonstrates how the choice of geometric space affects GNN performa
 - **Three geometric implementations**: Euclidean, Spherical, and Hyperbolic GNNs
 - **Multi-run experiments**: Compute mean and standard deviation statistics across multiple runs
 - **Graph visualization**: Generate 2D projections of learned embeddings
+- **GPU acceleration**: CUDA support for faster training on NVIDIA GPUs
 - **Web dashboard**: Interactive interface for running experiments and viewing results in real-time
 - **Comprehensive logging**: Track training progress and model performance
 
@@ -37,7 +38,7 @@ This project demonstrates how the choice of geometric space affects GNN performa
 ### Requirements
 
 - Python 3.8+
-- PyTorch
+- PyTorch (with CUDA support for GPU acceleration)
 - NetworkX
 - NumPy
 - Matplotlib
@@ -46,15 +47,27 @@ This project demonstrates how the choice of geometric space affects GNN performa
 
 ### Setup
 
+**For CPU-only:**
 ```bash
 pip install torch numpy networkx matplotlib scikit-learn flask flask-socketio
+```
+
+**For GPU acceleration (NVIDIA CUDA):**
+```bash
+pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu126
+pip install numpy networkx matplotlib scikit-learn flask flask-socketio
+```
+
+Verify CUDA availability:
+```bash
+python -c "import torch; print(f'CUDA available: {torch.cuda.is_available()}')"
 ```
 
 ## Usage
 
 ### Command Line Interface
 
-**Run multiple experiments:**
+**Run multiple experiments (auto-detects GPU):**
 ```bash
 python gnn.py --test euclidean --runs 5
 ```
@@ -64,10 +77,20 @@ python gnn.py --test euclidean --runs 5
 python gnn.py --test hyperbolic --seed 42
 ```
 
+**Force specific device:**
+```bash
+# Force GPU usage (fails if CUDA unavailable)
+python gnn.py --test spherical --device cuda --runs 3
+
+# Force CPU usage
+python gnn.py --test euclidean --device cpu
+```
+
 **Available options:**
 - `--test`: Test geometry (`euclidean`, `spherical`, `hyperbolic`)
 - `--runs`: Number of experimental runs (default: 3)
 - `--seed`: Random seed for reproducibility
+- `--device`: Device to use (`cpu`, `cuda`, `auto` - default: `auto`)
 - `--no-save`: Disable saving outputs
 - `--quiet`: Suppress verbose output
 
@@ -82,8 +105,13 @@ Navigate to `http://localhost:5000` in your browser to access the interactive da
 
 ## Output
 
-Results are saved in timestamped directories with the format `results_{geometry}_{timestamp}/`:
+Results are saved in timestamped directories with the format `results_{geometry}_{device}_{timestamp}/`:
 
+Examples:
+- `results_euclidean_cuda_2025-10-30_14-23-45/`
+- `results_hyperbolic_cpu_2025-10-30_15-10-22/`
+
+Each directory contains:
 - **Graph visualizations**: `{model_geom}_GNN-{test_geom}_test-{run}.png`
 - **Summary statistics plot**: `multi_run_results.png`
 - **JSON results**: `results_summary.json` (multi-run) or `single_run_results.json` (single run)
@@ -102,6 +130,12 @@ Results are saved in timestamped directories with the format `results_{geometry}
 - ReLU activation and dropout (0.3)
 - 500 training epochs with validation monitoring
 - Node classification task on Watts-Strogatz graphs (2000 nodes, 10 classes)
+
+### Performance
+
+GPU acceleration (CUDA) provides significant speedup for training.
+
+The implementation automatically detects and uses available GPU resources unless explicitly overridden with `--device`.
 
 ## Results Interpretation
 
