@@ -25,6 +25,9 @@ from matplotlib.patches import Circle
 import argparse, random, time, statistics, json, os
 from datetime import datetime
 
+auto_devn = 'cuda' if torch.cuda.is_available() else 'cpu'
+auto_dev = torch.device(auto_devn)
+
 # -------------------------
 #  Hyperbolic Geometry Utils
 # -------------------------
@@ -55,7 +58,7 @@ class H:
 # -------------------------
 #  Graph Data Generator
 # -------------------------
-def get_graph_data(n=2000, nc=10, nf=128, geom='euclidean'):
+def get_graph_data(n=2000, nc=10, nf=128, geom='euclidean', device=auto_dev):
     G = nx.watts_strogatz_graph(n, k=6, p=0.2)
     A = torch.FloatTensor(nx.adjacency_matrix(G).todense() + np.eye(n))
     di = torch.pow(A.sum(1), -0.5)
@@ -117,7 +120,7 @@ def get_graph_data(n=2000, nc=10, nf=128, geom='euclidean'):
     vl[idx[int(0.6 * n):int(0.8 * n)]] = True
     te[idx[int(0.8 * n):]] = True
 
-    return x, A, y, tr, vl, te
+    return x.to(device), A.to(device), y.to(device), tr, vl, te
 
 # -------------------------
 #  GNN Layers
@@ -258,7 +261,7 @@ def train(mdl, x, A, y, masks, epochs=500, verbose=True):
 # -------------------------
 #  Single Experiment
 # -------------------------
-def run_experiment(test_geom='euclidean', seed=None, verbose=True, save_dir=None, run_num=None):
+def run_experiment(test_geom='euclidean', seed=None, verbose=True, save_dir=None, run_num=None, device=auto_dev):
     """
     Run a single experiment comparing three GNN geometries.
     
@@ -273,11 +276,12 @@ def run_experiment(test_geom='euclidean', seed=None, verbose=True, save_dir=None
         raise ValueError("run_experiment now requires a non-None seed.")
     if verbose:
         print(f"[INFO] Using fixed seed: {seed}")
+        print(f"[INFO] Using device: {device}")
     torch.manual_seed(seed)
     np.random.seed(seed)
     random.seed(seed)
 
-    x_test, A_test, y_test, tr_test, vl_test, te_test = get_graph_data(n=2000, nc=10, nf=128, geom=test_geom)
+    x_test, A_test, y_test, tr_test, vl_test, te_test = get_graph_data(n=2000, nc=10, nf=128, geom=test_geom, device=device)
     res = {}
     
     for geom in ['euclidean','spherical','hyperbolic']:
@@ -289,9 +293,9 @@ def run_experiment(test_geom='euclidean', seed=None, verbose=True, save_dir=None
                 tr_test.clone(), vl_test.clone(), te_test.clone()
             )
         else:
-            x, A, y, tr, vl, te = get_graph_data(n=2000, nc=10, nf=128, geom=geom)
+            x, A, y, tr, vl, te = get_graph_data(n=2000, nc=10, nf=128, geom=geom, device=device)
 
-        model = GNN(x.shape[1], 256, y.max().item()+1, geom)
+        model = GNN(x.shape[1], 256, y.max().item()+1, geom).to(device)
         t0 = time.time()
         train(model, x, A, y, (tr, vl), epochs=500, verbose=verbose)
         dur = time.time() - t0
@@ -303,14 +307,14 @@ def run_experiment(test_geom='euclidean', seed=None, verbose=True, save_dir=None
             
             # Generate visualization if requested
             if save_dir is not None:
-                # Get final embeddings from the model
-                x_embed = model.c1(x_test, A_test)
+                # Get final embeddings from the model (move to CPU for visualization)
+                x_embed = model.c1(x_test, A_test).cpu()
                 if run_num is not None:
                     viz_filename = f"{geom}_GNN-{test_geom}_test-{run_num}.png"
                 else:
                     viz_filename = f"{geom}_GNN-{test_geom}_test.png"
                 viz_path = os.path.join(save_dir, viz_filename)
-                visualize_graph(x_embed, y_test, A_test, geom, viz_path, verbose=verbose)
+                visualize_graph(x_embed, y_test.cpu(), A_test.cpu(), geom, viz_path, verbose=verbose)
         
         res[geom] = {'acc': test_acc, 'time': dur}
         if verbose:
@@ -354,7 +358,7 @@ def plot_summary(summary, save_dir, verbose=True):
 # -------------------------
 #  Multi-run + Statistics
 # -------------------------
-def run_multiple(test_geom='euclidean', runs=3, verbose=True, save_outputs=True):
+def run_multiple(test_geom='euclidean', runs=3, verbose=True, save_outputs=True, device_name=auto_devn):
     """
     Run multiple experiments and aggregate results.
     
@@ -364,11 +368,13 @@ def run_multiple(test_geom='euclidean', runs=3, verbose=True, save_outputs=True)
         verbose: Print progress
         save_outputs: Save plots, JSON, and visualizations
     """
+    device = torch.device(device_name)
+
     # Create timestamped directory for outputs
     save_dir = None
     if save_outputs:
         timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-        save_dir = f"results_{test_geom}_{timestamp}"
+        save_dir = f"results_{test_geom}_{device_name}_{timestamp}"
         os.makedirs(save_dir, exist_ok=True)
         if verbose:
             print(f"[INFO] Created output directory: {save_dir}")
@@ -387,7 +393,8 @@ def run_multiple(test_geom='euclidean', runs=3, verbose=True, save_outputs=True)
             seed=seed, 
             verbose=verbose,
             save_dir=save_dir,
-            run_num=run_num if save_outputs else None
+            run_num=run_num if save_outputs else None,
+            device=device
         )
         
         for g in res:
@@ -422,13 +429,57 @@ def run_multiple(test_geom='euclidean', runs=3, verbose=True, save_outputs=True)
     return summary
 
 # -------------------------
+#  Single Seed Run
+# -------------------------
+def run_single_seed(test_geom, seed, verbose, save_outputs, device_name=auto_devn):
+    """Run a single experiment with a specified seed."""
+    if verbose:
+        print(f"[INFO] Running single experiment with seed {seed}")
+
+    device = torch.device(device_name)
+    
+    # Create timestamped directory for single run if saving
+    save_dir = None
+    if save_outputs:
+        timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        save_dir = f"results_{test_geom}_{device_name}_{timestamp}"
+        os.makedirs(save_dir, exist_ok=True)
+        if verbose:
+            print(f"[INFO] Created output directory: {save_dir}")
+    
+    # Run single experiment
+    results = run_experiment(
+        test_geom=test_geom, 
+        seed=seed, 
+        verbose=verbose,
+        save_dir=save_dir,
+        run_num=None,
+        device=device
+    )
+    
+    # Save JSON with seed info if requested
+    if save_outputs and save_dir:
+        results_with_metadata = {
+            'seed': seed,
+            'test_geometry': test_geom,
+            'results': results
+        }
+        json_path = os.path.join(save_dir, 'single_run_results.json')
+        with open(json_path, 'w') as f:
+            json.dump(results_with_metadata, f, indent=2)
+        if verbose:
+            print(f"[INFO] Saved results: {json_path}")
+            print(f"[INFO] All outputs saved in: {save_dir}")
+
+# -------------------------
 #  CLI Entry
 # -------------------------
-def main():
+def main(auto_device_name):
     parser = argparse.ArgumentParser(description='Multi-run GNN geometry comparison.')
     parser.add_argument('--test', choices=['euclidean','spherical','hyperbolic'], default='euclidean', help='Geometry of test data')
     parser.add_argument('--runs', type=int, default=3, help='Number of runs to average over')
     parser.add_argument('--seed', type=int, default=None, help='Base random seed (optional)')
+    parser.add_argument('--device', choices=['cpu','cuda','auto'], default='auto', help='Device to use (cpu/cuda/auto)')
     parser.add_argument('--no-save', action='store_true', help='Disable saving plots and JSON outputs')
     parser.add_argument('--quiet', action='store_true', help='Suppress verbose printing')
     args = parser.parse_args()
@@ -436,43 +487,21 @@ def main():
     verbose = not args.quiet
     save_outputs = not args.no_save
 
-    if args.seed is None:
-        run_multiple(test_geom=args.test, runs=args.runs, verbose=verbose, save_outputs=save_outputs)
+    # Determine device
+    if args.device == 'auto':
+        device_name = auto_device_name
+    elif args.device == 'cuda':
+        if not torch.cuda.is_available():
+            print("ERROR: CUDA requested but not available")
+            exit(1)
+        device_name = 'cuda'
     else:
-        if verbose:
-            print(f"[INFO] Running single experiment with seed {args.seed}")
-        
-        # Create timestamped directory for single run if saving
-        save_dir = None
-        if save_outputs:
-            timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-            save_dir = f"results_{args.test}_{timestamp}"
-            os.makedirs(save_dir, exist_ok=True)
-            if verbose:
-                print(f"[INFO] Created output directory: {save_dir}")
-        
-        # Run single experiment
-        results = run_experiment(
-            test_geom=args.test, 
-            seed=args.seed, 
-            verbose=verbose,
-            save_dir=save_dir,
-            run_num=None  # No run number for single runs
-        )
-        
-        # Save JSON with seed info if requested
-        if save_outputs and save_dir:
-            results_with_metadata = {
-                'seed': args.seed,
-                'test_geometry': args.test,
-                'results': results
-            }
-            json_path = os.path.join(save_dir, 'single_run_results.json')
-            with open(json_path, 'w') as f:
-                json.dump(results_with_metadata, f, indent=2)
-            if verbose:
-                print(f"[INFO] Saved results: {json_path}")
-                print(f"[INFO] All outputs saved in: {save_dir}")
+        device_name = 'cpu'
+
+    if args.seed is None:
+        run_multiple(test_geom=args.test, runs=args.runs, verbose=verbose, save_outputs=save_outputs, device_name=device_name)
+    else:
+        run_single_seed(test_geom=args.test, seed=args.seed, verbose=verbose, save_outputs=save_outputs, device_name=device_name)
 
 if __name__ == '__main__':
-    main()
+    main(auto_devn)
