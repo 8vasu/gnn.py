@@ -1,4 +1,4 @@
-#!/usr/bin/sage -python
+#!/usr/bin/sage --python
 
 # gnn.py - Geometric Graph Neural Networks.
 # Copyright (C) 2025 Soumendra Ganguly

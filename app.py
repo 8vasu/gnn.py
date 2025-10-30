@@ -1,4 +1,4 @@
-#!/usr/bin/sage -python
+#!/usr/bin/sage --python
 
 # app.py - Web interface for gnn.py.
 # Copyright (C) 2025 Soumendra Ganguly
