@@ -89,6 +89,9 @@ python gnn.py --test euclidean --runs 5
 # Single run with fixed seed
 python gnn.py --test hyperbolic --seed 42
 
+# Force GPU (fails if CUDA unavailable)
+python gnn.py --test spherical --device cuda --runs 3
+
 # Force CPU
 python gnn.py --test spherical --device cpu
 ```
