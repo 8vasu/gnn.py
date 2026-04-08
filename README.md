@@ -137,14 +137,6 @@ GPU acceleration (CUDA) provides significant speedup for training.
 
 The implementation automatically detects and uses available GPU resources unless explicitly overridden with `--device`.
 
-## Results Interpretation
-
-The experiments compare how well each geometric GNN performs when:
-1. Training and testing on data from the same geometry (matched condition)
-2. Training on one geometry but testing on another (transfer condition)
-
-Generally, hyperbolic geometry excels at hierarchical structures, spherical geometry at manifold-like data, and Euclidean geometry provides a baseline.
-
 ## Citation
 
 If you use this code in your research, please cite:
