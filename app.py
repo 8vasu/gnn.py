@@ -150,7 +150,7 @@ HTML = """<!DOCTYPE html>
   </style>
 </head>
 <body>
-  <h1>🧠 Geometry-Aware GNN Experiment Dashboard</h1>
+  <h1>Geometry-Aware GNN Experiment Dashboard</h1>
   
   <div class="controls">
     <form id="runForm">
@@ -169,18 +169,18 @@ HTML = """<!DOCTYPE html>
   </div>
 
   <div class="results-section">
-    <h2>📊 Experiment Log</h2>
+    <h2>Experiment Log</h2>
     <div id="log"></div>
   </div>
 
   <div id="summarySection" class="results-section hidden">
-    <h2>📈 Summary Statistics</h2>
+    <h2>Summary Statistics</h2>
     <div id="summaryStats" class="summary-grid"></div>
     <div id="summaryPlot" class="summary-plot"></div>
   </div>
 
   <div id="vizSection" class="results-section hidden">
-    <h2>🎨 Graph Visualizations</h2>
+    <h2>Graph Visualizations</h2>
     <div id="vizContainer"></div>
   </div>
 
